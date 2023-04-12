@@ -1,0 +1,1 @@
+const { stg } = require('./objects');
