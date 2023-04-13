@@ -100,6 +100,47 @@ async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amo
     return console.log(`Swap transaction sent, hash: ${swap.transactionHash}`);
 }
 
+function randomizeWallet(privateKeys) {
+    const key = privateKeys[Math.floor(Math.random() * privateKeys.length)];
+    return key;
+}
+
+
+async function randomizeChainAndToken(PrivateKey, stgObject) {
+    const counter = 0;
+    while (true) {
+        counter++;
+        if (counter > 15) {
+            return { chain: 0, token: 'undefined' };
+        }
+
+        const chain = Math.floor(Math.random() * (stgObject.length - 1));
+        const provider = getProvider(stgObject[chain].rpc);
+        const account = getWalletInstance(PrivateKey, provider);
+
+        if (stgObject[chain].USDC === undefined) {
+            const tokenInstance = getTokenInstance(stgObject[chain].USDT.address, provider);
+            const balance = await tokenInstance.methods.balanceOf(account.address).call();
+            if (balance > (50 * 10 ** stgObject[chain].USDT.decimals)) {
+                const amount = Math.floor(balance / 10 ** stgObject[chain].USDT.decimals);
+                return { chain, token: 'USDT', amount };
+            } else {
+                continue;
+            }
+        } else {
+            const tokenInstance = getTokenInstance(stgObject[chain].USDC.address, provider);
+            const balance = await tokenInstance.methods.balanceOf(account.address).call();
+            if (balance > (50 * 10 ** stgObject[chain].USDC.decimals)) {
+                const amount = Math.floor(balance / 10 ** stgObject[chain].USDC.decimals);
+                return { chain, token: 'USDC', amount };
+            } else {
+                continue;
+            }
+        }
+    }
+}
+
+
 
 module.exports = {
     getProvider,
@@ -112,5 +153,7 @@ module.exports = {
     isEnoughAllowance,
     approveTokens,
     getQuoteFee,
-    swap
+    swap,
+    randomizeWallet,
+    randomizeChainAndToken
 };
