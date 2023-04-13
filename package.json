@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "colors": "^1.4.0",
     "web3": "^1.9.0",
     "yarn": "^1.22.19"
   }

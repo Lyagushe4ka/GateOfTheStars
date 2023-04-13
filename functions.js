@@ -1,9 +1,16 @@
-const { Web3 } = require("web3");
+const Web3 = require("web3");
+const fs = require("fs");
 const { erc20Abi, routerAbi } = require("./objects");
 
+const providers = {};
 
 function getProvider(rpc) {
-    return new Web3.providers.HttpProvider(rpc);
+    if (rpc in providers) {
+        return providers[rpc];
+    } else {
+        providers[rpc] = new Web3.providers.HttpProvider(rpc);
+        return providers[rpc];
+    }
 }
 
 function getTokenInstance(token, provider) {
@@ -18,10 +25,29 @@ function getRouterInstance(router, provider) {
     return new provider.eth.Contract(routerAbi, router);
 }
 
+function hasUsdt(object) {
+    if ('USDT' in object) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function parsePrivateKeys() {
+    const data = fs.readFileSync('PrivateKeys.txt').toString();
+    const keys = data.split('\n');
+    return keys;
+}
+
+async function isEnoughBalance(wallet, tokenInstance, decimals, amount) {
+    const balance = await tokenInstance.methods.balanceOf(wallet).call();
+    return balance > (amount * 10 ** decimals) ? true : false;
+}
+
 async function isEnoughAllowance(token, wallet, router, provider) {
     const tokenInstance = getTokenInstance(token, provider);
     const balance = await tokenInstance.methods.balanceOf(wallet).call();
-    const allowance = await tokenInstance.methods.allowance(wallet.address, router).call();
+    const allowance = await tokenInstance.methods.allowance(wallet, router).call();
     return allowance > balance ? true : false;
 }
 
@@ -38,10 +64,10 @@ async function approveTokens(tokenName, tokenAdr, wallet, router, provider) {
     }
 }
 
-async function getQuoteFee(chainId, wallet, router, provider) {
+async function getQuoteFee(destChainId, wallet, router, provider) {
     const routerInstance = getRouterInstance(router, provider);
     const quote = await routerInstance.methods.quoteLayerZeroFee(
-        chainId,
+        destChainId,
         1,
         wallet,
         "0x",
@@ -58,7 +84,7 @@ async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amo
     const routerInstance = getRouterInstance(router, provider);
 
     const minAmountOut = amount * 0.99; // - 1% for slippage
-    
+
     const swap = await routerInstance.methods.swap(
         dstChainId,
         poolId,
@@ -80,6 +106,9 @@ module.exports = {
     getTokenInstance,
     getWalletInstance,
     getRouterInstance,
+    hasUsdt,
+    parsePrivateKeys,
+    isEnoughBalance,
     isEnoughAllowance,
     approveTokens,
     getQuoteFee,
