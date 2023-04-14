@@ -1,37 +1,94 @@
-const { stg } = require('./objects');
 const colors = require('colors/safe');
-const { getProvider, getWalletInstance, hasUsdt, parsePrivateKeys, isEnoughBalance, isEnoughAllowance, approveTokens, getQuoteFee, swap } = require('./functions');
+const { stg } = require('./objects');
+const { 
+    getProvider,
+    parsePrivateKeys,
+    isEnoughAllowance,
+    approveTokens,
+    getQuoteFee,
+    swap,
+    randomizeWallet,
+    randomizeChainAndToken,
+    randomizeDestChainAndToken,
+    retryPromise,
+} = require('./functions');
 
 async function main() {
+
+    let rndKey;
+    let chain;
+    let token;
+    let account;
+    let amount = 0;
+
+    // parse private keys from .txt file
     const keys = parsePrivateKeys();
 
-    const web3 = getProvider(stg[2].rpc);
-    console.log(colors.green(`Provider connected: ${stg[2].chainName}`));
+    // retry promise of random wallet that has enough balance on random chain and token
+    // returns:
+    // chain - chain object
+    // token - token object
+    // account - wallet instance
+    // amount - amount of tokens to swap with decimals
+    while (rndKey === undefined || chain === undefined || token === undefined || account === undefined || amount === 0) {
+        rndKey = randomizeWallet(keys);
 
-    const account = getWalletInstance(keys[0], web3);
-    console.log(colors.cyan(`Wallet connected: ${account.address}`));
-
-    const amount = 100;
-
-    if (!hasUsdt(stg[2])) {
-        console.log(colors.red('No USDT in this chain'));
-        return;
+        ({chain, token, account, amount} = await retryPromise(
+            () => randomizeChainAndToken(rndKey),
+        ));
     }
 
-    if (await isEnoughBalance(stg[2].USDT.address, account.address, web3, stg[2].decimals, amount)) {
-        if (await isEnoughAllowance(stg[2].USDT.address, account.address, stg[2].router, web3)) {
-            console.log(colors.green('USDT allowance is enough'));
-        } else {
-            const approve = await approveTokens(stg[2].USDT.name, stg[2].USDT.address, account.address, stg[2].router, web3);
-            console.log(colors.green(`${stg[2].USDT.name} approved, hash: ${approve.transactionHash}`));
-        }
+    console.log(colors.yellow(`Chain: ${chain.name}, Token: ${token.name}, Account: ${account.address}, Amount: ${amount / 10 ** token.decimals}`));
+
+    // check if allowance is enough
+    const enoughAllowance = await retryPromise(
+        () => isEnoughAllowance(token.address, account.address, chain.router, getProvider(chain.rpc)),
+    );
+    console.log(enoughAllowance ? colors.green('Enough allowance') : colors.red('Not enough allowance'));
+
+    // approve tokens if allowance is not enough
+    if (!enoughAllowance) {
+        const approve = await retryPromise(
+            () => approveTokens(token.name, token.address, account.address, chain.router, getProvider(chain.rpc)),
+        );
+        console.log(colors.green(`${token.name} approved, hash: ${approve.transactionHash}`));
     }
 
-    const quote = await getQuoteFee(stg[3].chainId, account.address, stg[2].router, web3);
-    console.log(colors.yellow(`Quote fee: ${quote}`));
+    // retry promise of random destination chain and token to swap that is not the same as departure chain
+    // returns:
+    // chain - chain object
+    // token - token object
+    const {destChain, destToken} = await retryPromise(
+        () => randomizeDestChainAndToken(chain.name),
+    );
+    console.log(colors.yellow(`Destination chain: ${destChain.name}, Destination token: ${destToken.name}`));
 
-    const swap = await swap(stg[2].chainId, stg[2].USDT.poolId, stg[3].USDC.poolId, account.address, stg[2].router, web3, amount, quote);
-    console.log(colors.green(`Swap hash: ${swap.transactionHash}`));
+    // get quote fee to bridge
+    const quote = await retryPromise(
+        () => getQuoteFee(destChain.id, account.address, chain.router, getProvider(chain.rpc)),
+    );
+    console.log(colors.green(`Quote fee: ${quote}`));
+
+    // bridge tokens
+    const bridge = await retryPromise(
+        () => swap(
+            destChain.id,
+            token.poolId,
+            destToken.poolId,
+            account.address,
+            chain.router,
+            getProvider(chain.rpc),
+            amount,
+            quote,
+        ),
+    );
+    console.log(colors.green(`Bridge transaction hash: ${bridge.transactionHash}`));
+
+    // set random timeout from 10 to 60 minutes
+    const timeout = Math.floor(Math.random() * 50 + 10) * 60 * 1000;
+    console.log(colors.yellow(`Timeout: ${timeout / 1000 / 60} minutes`));
+    console.log(colors.yellow('Waiting... \n'));
+    setTimeout(main, timeout);
 }
 
 main();

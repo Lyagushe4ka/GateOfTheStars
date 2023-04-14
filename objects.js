@@ -1,9 +1,11 @@
 const stg = [
     {
-        chainName: 'BSC',
-        chainId: 102,
-        rpc: 'https://bsc.publicnode.com',
-        router: '0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8',
+        chain: {
+            name: 'BSC',
+            id: 102,
+            rpc: 'https://bsc.publicnode.com',
+            router: '0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8',
+        },
         USDT: {
             name: 'USDT',
             address: '0x55d398326f99059fF775485246999027B3197955',
@@ -12,10 +14,12 @@ const stg = [
         }
     },
     {
-        chainName: 'Avalanche',
-        chainId: 106,
-        rpc: 'https://1rpc.io/avax/c',
-        router: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
+        chain: {
+            name: 'Avalanche',
+            id: 106,
+            rpc: 'https://1rpc.io/avax/c',
+            router: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
+        },
         USDC: {
             name: 'USDC',
             address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
@@ -30,10 +34,12 @@ const stg = [
         }
     },
     {
-        chainName: 'Fantom',
-        chainId: 112,
-        rpc: 'https://fantom.publicnode.com',
-        router: '0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6',
+        chain: {
+            name: 'Fantom',
+            id: 112,
+            rpc: 'https://fantom.publicnode.com',
+            router: '0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6',
+        },
         USDC: {
             name: 'USDC',
             address: '0x04068DA6C83AFCFA0e13ba15A6696662335D5B75',
@@ -42,10 +48,12 @@ const stg = [
         },
     },
     {
-        chainName: 'Polygon',
-        chainId: 109,
-        rpc: 'https://polygon.llamarpc.com',
-        router: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
+        chain: {
+            name: 'Polygon',
+            id: 109,
+            rpc: 'https://polygon.llamarpc.com',
+            router: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
+        },
         USDC: {
             name: 'USDC',
             address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
@@ -60,10 +68,12 @@ const stg = [
         }
     },
     {
-        chainName: 'Arbitrum',
-        chainId: 110,
-        rpc: 'https://arb1.arbitrum.io/rpc',
-        router: '0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614',
+        chain: {
+            name: 'Arbitrum',
+            id: 110,
+            rpc: 'https://arb1.arbitrum.io/rpc',
+            router: '0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614',
+        },
         USDC: {
             name: 'USDC',
             address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
@@ -78,10 +88,12 @@ const stg = [
         }
     },
     {
-        chainName: 'Optimism',
-        chainId: 111,
-        rpc: 'https://mainnet.optimism.io',
-        router: '0xB0D502E938ed5f4df2E681fE6E419ff29631d62b',
+        chain: {
+            name: 'Optimism',
+            id: 111,
+            rpc: 'https://mainnet.optimism.io',
+            router: '0xB0D502E938ed5f4df2E681fE6E419ff29631d62b',
+        },
         USDC: {
             name: 'USDC',
             address: '0x7f5c764cbc14f9669b88837ca1490cca17c31607',
