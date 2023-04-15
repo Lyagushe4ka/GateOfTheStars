@@ -49,9 +49,8 @@ async function main() {
     // approve tokens if allowance is not enough
     if (!enoughAllowance) {
         const approve = await retryPromise(
-            () => approveTokens(token.name, token.address, account.address, chain.router, getProvider(chain.rpc)),
+            () => approveTokens(token.name, token.address, account, chain.router, getProvider(chain.rpc)),
         );
-        console.log(colors.green(`${token.name} approved, hash: ${approve.transactionHash}`));
     }
 
     // retry promise of random destination chain and token to swap that is not the same as departure chain
@@ -75,7 +74,7 @@ async function main() {
             destChain.id,
             token.poolId,
             destToken.poolId,
-            account.address,
+            account,
             chain.router,
             getProvider(chain.rpc),
             amount,

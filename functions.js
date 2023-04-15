@@ -8,7 +8,7 @@ function getProvider(rpc) {
     if (rpc in providers) {
         return providers[rpc];
     } else {
-        providers[rpc] = new Web3.providers.HttpProvider(rpc);
+        providers[rpc] = new Web3(new Web3.providers.HttpProvider(rpc));
         return providers[rpc];
     }
 }
@@ -18,6 +18,9 @@ function getTokenInstance(token, provider) {
 }
 
 function getWalletInstance(PrivateKey, provider) {
+    if (!provider || !provider.eth) {
+        throw new Error('Invalid provider');
+    }
     return provider.eth.accounts.privateKeyToAccount(PrivateKey);
 }
 
@@ -35,18 +38,23 @@ async function isEnoughAllowance(tokenContract, wallet, router, provider) {
     const tokenInstance = getTokenInstance(tokenContract, provider);
     const balance = await tokenInstance.methods.balanceOf(wallet).call();
     const allowance = await tokenInstance.methods.allowance(wallet, router).call();
-    return allowance > balance ? true : false;
+    return BigInt(allowance) > BigInt(balance);
 }
 
 async function approveTokens(tokenName, tokenContract, wallet, router, provider) {
     const tokenInstance = getTokenInstance(tokenContract, provider);
-    if (tokenName === "USDT") {
-        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet });
 
-        const approve = await tokenInstance.methods.approve(router, 2 ** 256 - 1).send({ from: wallet });
+    provider.eth.accounts.wallet.add(wallet);
+    provider.eth.defaultAccount = wallet.address
+
+    if (tokenName === "USDT") {
+        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet.address, gas: 100000 });
+        console.log(`${tokenName} revoked, hash: ${revoke.transactionHash}`);
+
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: 100000 });
         return console.log(`${tokenName} approved, hash: ${approve.transactionHash}`);
     } else {
-        const approve = await tokenInstance.methods.approve(router, 2 ** 256 - 1).send({ from: wallet });
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: 100000 });
         return console.log(`${tokenName} approved, hash: ${approve.transactionHash}`);
     }
 }
@@ -70,19 +78,22 @@ async function getQuoteFee(destChainId, wallet, router, provider) {
 async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amount, fee) {
     const routerInstance = getRouterInstance(router, provider);
 
+    provider.eth.accounts.wallet.add(wallet);
+    provider.eth.defaultAccount = wallet.address
+
     const minAmountOut = amount * 0.99; // - 1% for slippage
 
     const swap = await routerInstance.methods.swap(
         dstChainId,
         poolId,
         dstPoolId,
-        wallet,
+        wallet.address,
         amount,
         minAmountOut,
         { dstGasForCall: 0, dstNativeAmount: 0, dstNativeAddr: "0x" },
-        wallet,
+        wallet.address,
         ""
-    ).send({ value: fee, from: wallet });
+    ).send({ value: fee, from: wallet.address, gas: 1000000 });
 
     return console.log(`Swap transaction sent, hash: ${swap.transactionHash}`);
 }
@@ -95,7 +106,7 @@ function randomizeWallet(privateKeys) {
 
 // randomize chain and token to swap
 async function randomizeChainAndToken(PrivateKey) {
-    const counter = 0;
+    let counter = 0;
     while (true) {
         counter++;
 
@@ -104,11 +115,12 @@ async function randomizeChainAndToken(PrivateKey) {
             return { chain: undefined, token: undefined, account: undefined, amount: 0 };
         }
 
-        const chain = Math.floor(Math.random() * (stg.length - 1));
+        const chain = Math.floor(Math.random() * stg.length);
         const provider = getProvider(stg[chain].chain.rpc);
+        console.log(`Provider: ${provider}`)
         const account = getWalletInstance(PrivateKey, provider);
 
-        if (stg[chain].USDC.Contract === undefined) {
+        if (stg[chain].USDC === undefined) {
             const tokenInstance = getTokenInstance(stg[chain].USDT.address, provider);
             const balance = await tokenInstance.methods.balanceOf(account.address).call();
             if (balance > (50 * 10 ** stg[chain].USDT.decimals)) {
@@ -117,7 +129,7 @@ async function randomizeChainAndToken(PrivateKey) {
             } else {
                 continue;
             }
-        } else {
+        } else if (stg[chain].USDT === undefined) {
             const tokenInstance = getTokenInstance(stg[chain].USDC.address, provider);
             const balance = await tokenInstance.methods.balanceOf(account.address).call();
             if (balance > (50 * 10 ** stg[chain].USDC.decimals)) {
@@ -125,6 +137,27 @@ async function randomizeChainAndToken(PrivateKey) {
                 return { chain: stg[chain].chain, token: stg[chain].USDC, account: account, amount: amount };
             } else {
                 continue;
+            }
+        } else {
+            const rndBool = Math.random() < 0.5;
+            if (!rndBool) {
+                const tokenInstance = getTokenInstance(stg[chain].USDC.address, provider);
+                const balance = await tokenInstance.methods.balanceOf(account.address).call();
+                if (balance > (50 * 10 ** stg[chain].USDC.decimals)) {
+                    const amount = Math.floor(balance / 10 ** stg[chain].USDC.decimals) * 10 ** stg[chain].USDC.decimals;
+                    return { chain: stg[chain].chain, token: stg[chain].USDC, account: account, amount: amount };
+                } else {
+                    continue;
+                }
+            } else {
+                const tokenInstance = getTokenInstance(stg[chain].USDT.address, provider);
+                const balance = await tokenInstance.methods.balanceOf(account.address).call();
+                if (balance > (50 * 10 ** stg[chain].USDT.decimals)) {
+                    const amount = Math.floor(balance / 10 ** stg[chain].USDT.decimals) * 10 ** stg[chain].USDT.decimals;
+                    return { chain: stg[chain].chain, token: stg[chain].USDT, account: account, amount: amount };
+                } else {
+                    continue;
+                }
             }
         }
     }
@@ -134,7 +167,7 @@ async function randomizeChainAndToken(PrivateKey) {
 function randomizeDestChainAndToken(DepartureChainName) {
 
     while (true) {
-        const chain = Math.floor(Math.random() * (stg.length - 1));
+        const chain = Math.floor(Math.random() * stg.length);
         if (stg[chain].chain.name !== DepartureChainName) {
             if (stg[chain].USDC.name === undefined) {
                 return { destChain: stg[chain].chain, destToken: stg[chain].USDT };
