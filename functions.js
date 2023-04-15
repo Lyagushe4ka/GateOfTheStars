@@ -1,5 +1,6 @@
 const Web3 = require("web3");
 const fs = require("fs");
+const colors = require("colors");
 const { stg, erc20Abi, routerAbi } = require("./objects");
 
 const providers = {};
@@ -48,14 +49,14 @@ async function approveTokens(tokenName, tokenContract, wallet, router, provider)
     provider.eth.defaultAccount = wallet.address
 
     if (tokenName === "USDT") {
-        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet.address, gas: 100000 });
-        console.log(`${tokenName} revoked, hash: ${revoke.transactionHash}`);
+        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet.address });
+        console.log(colors.cyan(`${tokenName} revoked, hash: ${revoke.transactionHash}`));
 
-        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: 100000 });
-        return console.log(`${tokenName} approved, hash: ${approve.transactionHash}`);
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address });
+        return console.log(colors.green(`${tokenName} approved, hash: ${approve.transactionHash}`));
     } else {
-        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: 100000 });
-        return console.log(`${tokenName} approved, hash: ${approve.transactionHash}`);
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address });
+        return console.log(colors.green(`${tokenName} approved, hash: ${approve.transactionHash}`));
     }
 }
 
@@ -72,7 +73,7 @@ async function getQuoteFee(destChainId, wallet, router, provider) {
             dstNativeAddr: "0x",  // destination wallet for dust
         }
     ).call();
-    return quote[0].mul(10).div(8); // + 20% for gas
+    return quote[0] / 10 * 12; // + 20% for gas
 }
 
 async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amount, fee) {
@@ -92,10 +93,10 @@ async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amo
         minAmountOut,
         { dstGasForCall: 0, dstNativeAmount: 0, dstNativeAddr: "0x" },
         wallet.address,
-        ""
+        [],
     ).send({ value: fee, from: wallet.address, gas: 1000000 });
 
-    return console.log(`Swap transaction sent, hash: ${swap.transactionHash}`);
+    return console.log(colors.green(`Bridge transaction sent, hash: ${swap.transactionHash}`));
 }
 
 // randomize wallet from PrivateKeys.txt
@@ -120,45 +121,21 @@ async function randomizeChainAndToken(PrivateKey) {
         console.log(`Provider: ${provider}`)
         const account = getWalletInstance(PrivateKey, provider);
 
-        if (stg[chain].USDC === undefined) {
-            const tokenInstance = getTokenInstance(stg[chain].USDT.address, provider);
-            const balance = await tokenInstance.methods.balanceOf(account.address).call();
-            if (balance > (50 * 10 ** stg[chain].USDT.decimals)) {
-                const amount = Math.floor(balance / 10 ** stg[chain].USDT.decimals) * 10 ** stg[chain].USDT.decimals;
-                return { chain: stg[chain].chain, token: stg[chain].USDT, account: account, amount: amount };
-            } else {
-                continue;
-            }
-        } else if (stg[chain].USDT === undefined) {
-            const tokenInstance = getTokenInstance(stg[chain].USDC.address, provider);
-            const balance = await tokenInstance.methods.balanceOf(account.address).call();
-            if (balance > (50 * 10 ** stg[chain].USDC.decimals)) {
-                const amount = Math.floor(balance / 10 ** stg[chain].USDC.decimals) * 10 ** stg[chain].USDC.decimals;
-                return { chain: stg[chain].chain, token: stg[chain].USDC, account: account, amount: amount };
-            } else {
-                continue;
-            }
+        const rndBool = Math.random() < 0.5;
+        const token = rndBool ? stg[chain].USDC : stg[chain].USDT;
+
+        if (token === undefined) {
+            token = rndBool ? stg[chain].USDT : stg[chain].USDC;
+        }
+        
+        const tokenInstance = getTokenInstance(token.address, provider);
+        const balance = await tokenInstance.methods.balanceOf(account.address).call();
+
+        if (balance > (50 * 10 ** token.decimals)) {
+            const amount = Math.floor(balance / 10 ** token.decimals) * 10 ** token.decimals;
+            return { chain: stg[chain].chain, token: token, account: account, amount: amount };
         } else {
-            const rndBool = Math.random() < 0.5;
-            if (!rndBool) {
-                const tokenInstance = getTokenInstance(stg[chain].USDC.address, provider);
-                const balance = await tokenInstance.methods.balanceOf(account.address).call();
-                if (balance > (50 * 10 ** stg[chain].USDC.decimals)) {
-                    const amount = Math.floor(balance / 10 ** stg[chain].USDC.decimals) * 10 ** stg[chain].USDC.decimals;
-                    return { chain: stg[chain].chain, token: stg[chain].USDC, account: account, amount: amount };
-                } else {
-                    continue;
-                }
-            } else {
-                const tokenInstance = getTokenInstance(stg[chain].USDT.address, provider);
-                const balance = await tokenInstance.methods.balanceOf(account.address).call();
-                if (balance > (50 * 10 ** stg[chain].USDT.decimals)) {
-                    const amount = Math.floor(balance / 10 ** stg[chain].USDT.decimals) * 10 ** stg[chain].USDT.decimals;
-                    return { chain: stg[chain].chain, token: stg[chain].USDT, account: account, amount: amount };
-                } else {
-                    continue;
-                }
-            }
+            continue;
         }
     }
 }

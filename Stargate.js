@@ -1,5 +1,4 @@
 const colors = require('colors/safe');
-const { stg } = require('./objects');
 const { 
     getProvider,
     parsePrivateKeys,
@@ -53,13 +52,11 @@ async function main() {
         );
     }
 
-    // retry promise of random destination chain and token to swap that is not the same as departure chain
-    // returns:
-    // chain - chain object
-    // token - token object
-    const {destChain, destToken} = await retryPromise(
-        () => randomizeDestChainAndToken(chain.name),
-    );
+    // returns random destination chain and token that is not the same as departure chain
+    // destChain - chain object
+    // destToken - token object
+    const {destChain, destToken} = randomizeDestChainAndToken(chain.name);
+
     console.log(colors.yellow(`Destination chain: ${destChain.name}, Destination token: ${destToken.name}`));
 
     // get quote fee to bridge
@@ -81,7 +78,6 @@ async function main() {
             quote,
         ),
     );
-    console.log(colors.green(`Bridge transaction hash: ${bridge.transactionHash}`));
 
     // set random timeout from 10 to 60 minutes
     const timeout = Math.floor(Math.random() * 50 + 10) * 60 * 1000;
