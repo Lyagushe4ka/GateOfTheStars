@@ -49,13 +49,22 @@ async function approveTokens(tokenName, tokenContract, wallet, router, provider)
     provider.eth.defaultAccount = wallet.address
 
     if (tokenName === "USDT") {
-        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet.address });
+        const revokeGas = await tokenInstance.methods.approve(router, 0).estimateGas({ from: wallet.address });
+        console.log(`Revoke gaslimit: ${revokeGas}`);
+
+        const revoke = await tokenInstance.methods.approve(router, 0).send({ from: wallet.address, gas: revokeGas });
         console.log(colors.cyan(`${tokenName} revoked, hash: ${revoke.transactionHash}`));
 
-        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address });
+        const approveGas = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).estimateGas({ from: wallet.address });
+        console.log(`Approve gaslimit: ${approveGas}`);
+
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: approveGas });
         return console.log(colors.green(`${tokenName} approved, hash: ${approve.transactionHash}`));
     } else {
-        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address });
+        const approveGas = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).estimateGas({ from: wallet.address });
+        console.log(`Approve gaslimit: ${approveGas}`);
+
+        const approve = await tokenInstance.methods.approve(router, provider.utils.toBN('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')).send({ from: wallet.address, gas: approveGas });
         return console.log(colors.green(`${tokenName} approved, hash: ${approve.transactionHash}`));
     }
 }
@@ -73,7 +82,7 @@ async function getQuoteFee(destChainId, wallet, router, provider) {
             dstNativeAddr: "0x",  // destination wallet for dust
         }
     ).call();
-    return quote[0] / 10 * 12; // + 20% for gas
+    return Math.floor(quote[0] / 10 * 12); // + 20% for gas
 }
 
 async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amount, fee) {
@@ -83,6 +92,20 @@ async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amo
     provider.eth.defaultAccount = wallet.address
 
     const minAmountOut = amount * 0.99; // - 1% for slippage
+
+    const swapGas = await routerInstance.methods.swap(
+        dstChainId,
+        poolId,
+        dstPoolId,
+        wallet.address,
+        amount,
+        minAmountOut,
+        { dstGasForCall: 0, dstNativeAmount: 0, dstNativeAddr: "0x" },
+        wallet.address,
+        [],
+    ).estimateGas({ value: fee, from: wallet.address });
+
+    console.log(`Swap gaslimit: ${swapGas}`);
 
     const swap = await routerInstance.methods.swap(
         dstChainId,
@@ -94,7 +117,7 @@ async function swap(dstChainId, poolId, dstPoolId, wallet, router, provider, amo
         { dstGasForCall: 0, dstNativeAmount: 0, dstNativeAddr: "0x" },
         wallet.address,
         [],
-    ).send({ value: fee, from: wallet.address, gas: 1000000 });
+    ).send({ value: fee, from: wallet.address, gas: swapGas });
 
     return console.log(colors.green(`Bridge transaction sent, hash: ${swap.transactionHash}`));
 }
@@ -122,7 +145,7 @@ async function randomizeChainAndToken(PrivateKey) {
         const account = getWalletInstance(PrivateKey, provider);
 
         const rndBool = Math.random() < 0.5;
-        const token = rndBool ? stg[chain].USDC : stg[chain].USDT;
+        let token = rndBool ? stg[chain].USDC : stg[chain].USDT;
 
         if (token === undefined) {
             token = rndBool ? stg[chain].USDT : stg[chain].USDC;
